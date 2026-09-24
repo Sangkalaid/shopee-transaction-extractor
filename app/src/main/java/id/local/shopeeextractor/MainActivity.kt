@@ -249,6 +249,68 @@ private fun HomeScreen() {
                     PermissionStatusRow("Tombol Bulat Melayang (Overlay)", isOverlayActive)
                     PermissionStatusRow("Layanan Aksesibilitas Shopee", isAccessibilityActive)
 
+                    if (!isAccessibilityActive) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7ED)),
+                            border = BorderStroke(1.dp, Color(0xFFFED7AA)),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("⚠️ ", fontSize = 13.sp)
+                                    Text(
+                                        "Tombol Aksesibilitas Abu-Abu / Dibatasi?",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        color = Color(0xFFC2410C)
+                                    )
+                                }
+                                Text(
+                                    "Android 13/14/15 mengunci aksesibilitas aplikasi baru demi keamanan. Cara membukanya:",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF9A3412)
+                                )
+                                Text(
+                                    "1. Klik tombol 'Buka Info Aplikasi' di bawah.\n2. Klik Titik Tiga (⋮) di pojok kanan atas layar Info Aplikasi.\n3. Pilih 'Izinkan setelan terbatas' lalu masukkan PIN/kunci layar.\n4. Buka menu Aksesibilitas dan geser tombol menjadi aktif.",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF7C2D12),
+                                    lineHeight = 16.sp
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Button(
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(6.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEA580C)),
+                                        onClick = {
+                                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                                data = Uri.parse("package:${context.packageName}")
+                                            }
+                                            context.startActivity(intent)
+                                        }
+                                    ) {
+                                        Text("🔓 1. Info Aplikasi", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    OutlinedButton(
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(6.dp),
+                                        onClick = {
+                                            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                                        }
+                                    ) {
+                                        Text("⚙️ 2. Aksesibilitas", fontSize = 10.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     if (!isAllReady) {
                         Button(
                             modifier = Modifier
@@ -369,14 +431,29 @@ private fun HomeScreen() {
                             color = Color.DarkGray
                         )
                     } else if (nextStepIsAccessibility) {
-                        Text("Aplikasi memerlukan layanan aksesibilitas untuk membaca riwayat transaksi Shopee Anda ke dalam CSV.")
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            Text(
-                                "💡 Khusus Android 13/14/15: Jika tombol abu-abu/dibatasi, buka Info Aplikasi lalu pilih 'Izinkan setelan terbatas'.",
-                                fontSize = 11.sp,
-                                color = Color(0xFF4A148C),
-                                fontWeight = FontWeight.SemiBold
-                            )
+                        Text("Aplikasi memerlukan layanan aksesibilitas untuk membaca riwayat transaksi Shopee Anda.")
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7ED)),
+                            border = BorderStroke(1.dp, Color(0xFFFED7AA)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    "💡 Jika muncul 'Setelan Dibatasi' atau tombol abu-abu:",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFC2410C)
+                                )
+                                Text(
+                                    "1. Klik tombol '1. Info Aplikasi' di bawah.\n2. Klik Titik Tiga (⋮) di pojok kanan atas.\n3. Pilih 'Izinkan setelan terbatas' & masukkan kunci layar.\n4. Klik tombol '2. Aksesibilitas' dan aktifkan.",
+                                    fontSize = 10.sp,
+                                    color = Color(0xFF7C2D12),
+                                    lineHeight = 15.sp
+                                )
+                            }
                         }
                     } else {
                         Text("Semua perizinan telah aktif! Aplikasi siap digunakan.")
@@ -384,28 +461,56 @@ private fun HomeScreen() {
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        if (nextStepIsOverlay) {
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                Uri.parse("package:${context.packageName}")
-                            )
-                            context.startActivity(intent)
-                        } else if (nextStepIsAccessibility) {
-                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                            context.startActivity(intent)
-                        } else {
-                            showPermissionPromptDialog = false
+                if (nextStepIsAccessibility) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Button(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEA580C)),
+                            shape = RoundedCornerShape(8.dp),
+                            onClick = {
+                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                    data = Uri.parse("package:${context.packageName}")
+                                }
+                                context.startActivity(intent)
+                            }
+                        ) {
+                            Text("1. Buka Info Aplikasi (Buka Kunci)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Button(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            onClick = {
+                                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                context.startActivity(intent)
+                            }
+                        ) {
+                            Text("2. Buka Menu Aksesibilitas", fontSize = 11.sp)
                         }
                     }
-                ) {
-                    Text(if (isAllReady) "Selesai" else "Izinkan")
+                } else {
+                    Button(
+                        onClick = {
+                            if (nextStepIsOverlay) {
+                                val intent = Intent(
+                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    Uri.parse("package:${context.packageName}")
+                                )
+                                context.startActivity(intent)
+                            } else {
+                                showPermissionPromptDialog = false
+                            }
+                        }
+                    ) {
+                        Text(if (isAllReady) "Selesai" else "Izinkan")
+                    }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showPermissionPromptDialog = false }) {
-                    Text("Tolak / Nanti")
+                    Text("Tutup")
                 }
             }
         )
