@@ -20,13 +20,9 @@ data class ExportResult(
 )
 
 class CsvExporter(private val context: Context) {
-    fun export(records: List<TransactionRecordEntity>): ExportResult {
-        val dir = File(context.filesDir, "exports").apply { mkdirs() }
-        val timeStamp = SimpleDateFormat("dd-MM-yyyy_HHmm", Locale.US).format(Date())
-        val baseName = "Shopee_Transaksi_$timeStamp"
-        val file = uniqueFile(dir, baseName)
 
-        val csvContent = buildString {
+    fun buildCsvString(records: List<TransactionRecordEntity>): String {
+        return buildString {
             append("\uFEFF") // UTF-8 BOM for Microsoft Excel compatibility
             appendLine("Jenis Transaksi;Keterangan;Tanggal;Nominal;Status")
             records.forEach { record ->
@@ -41,10 +37,36 @@ class CsvExporter(private val context: Context) {
                 )
             }
         }
+    }
 
+    /**
+     * Write CSV to a user-chosen directory via Storage Access Framework (SAF) URI
+     */
+    fun writeToUri(records: List<TransactionRecordEntity>, targetUri: Uri): Boolean {
+        return try {
+            val content = buildCsvString(records)
+            context.contentResolver.openOutputStream(targetUri)?.use { os ->
+                os.write(content.toByteArray(Charsets.UTF_8))
+            }
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * Default quick export to internal and public Download directory
+     */
+    fun export(records: List<TransactionRecordEntity>): ExportResult {
+        val dir = File(context.filesDir, "exports").apply { mkdirs() }
+        val timeStamp = SimpleDateFormat("dd-MM-yyyy_HHmm", Locale.US).format(Date())
+        val baseName = "Shopee_Transaksi_$timeStamp"
+        val file = uniqueFile(dir, baseName)
+
+        val csvContent = buildCsvString(records)
         file.writeText(csvContent, Charsets.UTF_8)
 
-        // Save a copy to Public Downloads directory
         var publicDesc = "Folder Download HP (${file.name})"
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

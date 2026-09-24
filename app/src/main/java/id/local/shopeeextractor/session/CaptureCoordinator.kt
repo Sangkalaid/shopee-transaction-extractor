@@ -8,7 +8,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -18,6 +17,8 @@ data class CaptureUiState(
     val sessionId: Long? = null,
     val uniqueCount: Int = 0,
     val duplicateSkippedCount: Int = 0,
+    val lastBatchCount: Int = 0,
+    val lastBatchTimestamp: Long = 0L,
 )
 
 class CaptureCoordinator(private val repository: CaptureRepository) {
@@ -30,8 +31,19 @@ class CaptureCoordinator(private val repository: CaptureRepository) {
     val state: StateFlow<CaptureUiState> = _state
 
     fun ready() {
-        if (_state.value.state == CaptureState.IDLE) {
-            _state.update { it.copy(state = CaptureState.READY) }
+        scope.launch {
+            mutex.withLock {
+                dedupe.reset()
+                sequenceIndex = 0
+                _state.value = CaptureUiState(
+                    state = CaptureState.READY,
+                    sessionId = null,
+                    uniqueCount = 0,
+                    duplicateSkippedCount = 0,
+                    lastBatchCount = 0,
+                    lastBatchTimestamp = 0L
+                )
+            }
         }
     }
 
@@ -42,7 +54,14 @@ class CaptureCoordinator(private val repository: CaptureRepository) {
                 dedupe.reset()
                 sequenceIndex = 0
                 val sessionId = repository.createSession()
-                _state.value = CaptureUiState(state = CaptureState.RECORDING, sessionId = sessionId)
+                _state.value = CaptureUiState(
+                    state = CaptureState.RECORDING,
+                    sessionId = sessionId,
+                    uniqueCount = 0,
+                    duplicateSkippedCount = 0,
+                    lastBatchCount = 0,
+                    lastBatchTimestamp = 0L
+                )
             }
         }
     }
@@ -56,9 +75,14 @@ class CaptureCoordinator(private val repository: CaptureRepository) {
                 _state.value = snapshot.copy(
                     state = CaptureState.STOPPED,
                     duplicateSkippedCount = dedupe.duplicateSkippedCount,
+                    lastBatchCount = 0,
                 )
             }
         }
+    }
+
+    fun reset() {
+        ready()
     }
 
     fun onVisibleTransactions(transactions: List<ParsedTransaction>) {
@@ -67,12 +91,16 @@ class CaptureCoordinator(private val repository: CaptureRepository) {
         scope.launch {
             mutex.withLock {
                 val accepted = dedupe.acceptVisibleWindow(transactions)
-                repository.addTransactions(snapshot.sessionId, sequenceIndex, accepted)
-                sequenceIndex += accepted.size
-                _state.value = snapshot.copy(
-                    uniqueCount = sequenceIndex,
-                    duplicateSkippedCount = dedupe.duplicateSkippedCount,
-                )
+                if (accepted.isNotEmpty()) {
+                    repository.addTransactions(snapshot.sessionId, sequenceIndex, accepted)
+                    sequenceIndex += accepted.size
+                    _state.value = snapshot.copy(
+                        uniqueCount = sequenceIndex,
+                        duplicateSkippedCount = dedupe.duplicateSkippedCount,
+                        lastBatchCount = accepted.size,
+                        lastBatchTimestamp = System.currentTimeMillis()
+                    )
+                }
             }
         }
     }

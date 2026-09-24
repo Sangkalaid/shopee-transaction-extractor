@@ -16,6 +16,7 @@ class ParserTest {
         assertEquals(87378L, AmountParser.parse("+Rp87.378"))
         assertEquals(257883L, AmountParser.parse("Rp257.883"))
         assertEquals(50000L, AmountParser.parse("Rp50.000,00"))
+        assertEquals(-50000L, AmountParser.parse("Rp -50.000"))
     }
 
     @Test
@@ -41,6 +42,21 @@ class ParserTest {
         assertEquals("Shopee Marketplace", parsed.description)
         assertEquals(-257883L, parsed.numericAmount)
         assertEquals("Gagal", parsed.transactionStatus)
+    }
+
+    @Test
+    fun parsesPaymentWithSuccessStatus() {
+        val parsed = parse(
+            "Isi Saldo",
+            "Dari Rekening Bank",
+            "09 September 2026",
+            "+Rp100.000",
+            "Berhasil",
+        )
+        assertNotNull(parsed)
+        assertEquals("Isi Saldo", parsed!!.transactionType)
+        assertEquals(100000L, parsed.numericAmount)
+        assertEquals("Berhasil", parsed.transactionStatus)
     }
 
     @Test

@@ -10,19 +10,26 @@ import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -36,11 +43,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,7 +76,7 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = Color(0xFFF8F9FA)
                 ) {
                     HomeScreen()
                 }
@@ -87,9 +96,40 @@ private fun HomeScreen() {
     var isOverlayActive by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var isAccessibilityActive by remember { mutableStateOf(context.isAccessibilityEnabled()) }
 
-    var showPermissionMissingDialog by remember { mutableStateOf(false) }
+    var showPermissionPromptDialog by rememberSaveable { mutableStateOf(false) }
+    var selectedSessionForCustomDir by remember { mutableStateOf<CaptureSessionEntity?>(null) }
     var showSuccessLaunchDialog by remember { mutableStateOf(false) }
 
+    val manufacturer = remember { Build.MANUFACTURER.replaceFirstChar { it.uppercase() } }
+
+    // Launcher for Storage Access Framework (SAF) - allows user to pick ANY directory on device
+    val createDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri: Uri? ->
+        val session = selectedSessionForCustomDir
+        if (uri != null && session != null) {
+            scope.launch {
+                val records = app.repository.getRecords(session.id)
+                val success = CsvExporter(context).writeToUri(records, uri)
+                if (success) {
+                    app.repository.markSaved(session.id, "Disimpan di folder pilihan")
+                    Toast.makeText(context, "✅ Berhasil disimpan ke folder yang Anda pilih!", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, "Gagal menyimpan file ke lokasi tersebut.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        selectedSessionForCustomDir = null
+    }
+
+    // Auto-prompt dialog on launch if any permission is missing
+    LaunchedEffect(Unit) {
+        if (!isOverlayActive || !isAccessibilityActive) {
+            showPermissionPromptDialog = true
+        }
+    }
+
+    // Real-time tracking of permissions on resume
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -105,296 +145,286 @@ private fun HomeScreen() {
 
     val isAllReady = isOverlayActive && isAccessibilityActive
 
-    Column(
+    // Unified scrollable layout for seamless UI across all device sizes
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp)
     ) {
-        Text(
-            text = "Shopee Transaction Extractor",
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-        )
-
-        // Status Banner Card
-        if (isAllReady) {
-            Card(
+        // App Header
+        item {
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
-                border = BorderStroke(1.dp, Color(0xFF4CAF50)),
-                shape = RoundedCornerShape(12.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("✅", fontSize = 24.sp)
-                    Spacer(Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            "Semua Izin Telah Aktif!",
+                Column {
+                    Text(
+                        text = "Shopee Extractor",
+                        style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF2E7D32)
+                            color = Color(0xFF1E293B)
                         )
-                        Text(
-                            "Aplikasi siap digunakan untuk merekam transaksi Shopee.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF1B5E20)
+                    )
+                    Text(
+                        text = "Perangkat: $manufacturer",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF64748B)
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .background(
+                            if (isAllReady) Color(0xFFE8F5E9) else Color(0xFFFFF3E0),
+                            shape = RoundedCornerShape(16.dp)
                         )
-                    }
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = if (isAllReady) "● SIAP DIGUNAKAN" else "● PERLU PERIZINAN",
+                        color = if (isAllReady) Color(0xFF2E7D32) else Color(0xFFE65100),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
-        } else {
+        }
+
+        // Section 1: Floating Bubble Feature Card
+        item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)),
-                border = BorderStroke(1.dp, Color(0xFFFF9800)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
+                border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(14.dp),
+                    modifier = Modifier.padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("⚠️", fontSize = 24.sp)
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .background(Color(0xFF2563EB), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("🔘", fontSize = 18.sp)
+                    }
                     Spacer(Modifier.width(10.dp))
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "Izin Perangkat Diperlukan",
+                            "Tombol Bulat Melayang Aktif",
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFE65100)
+                            fontSize = 13.sp,
+                            color = Color(0xFF1E40AF)
                         )
                         Text(
-                            "Harap aktifkan 2 izin di bawah agar aplikasi dapat berfungsi.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFBF360C)
+                            "Saat tombol bulat diklik, muncul menu: START, STOP, SIMPAN CSV, dan RESET ke 0.",
+                            fontSize = 11.sp,
+                            color = Color(0xFF1D4ED8)
                         )
                     }
                 }
             }
         }
 
-        // Step 1: Overlay Permission Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(10.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+        // Section 2: Permission Status Card
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Status Perizinan Aplikasi",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = Color(0xFF1E293B)
+                    )
+
+                    PermissionStatusRow("Tombol Bulat Melayang (Overlay)", isOverlayActive)
+                    PermissionStatusRow("Layanan Aksesibilitas Shopee", isAccessibilityActive)
+
+                    if (!isAllReady) {
+                        Button(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F172A)),
+                            onClick = { showPermissionPromptDialog = true }
+                        ) {
+                            Text("Tampilkan Dialog Perizinan (Izinkan / Tolak)", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Section 3: Primary Action Button
+        item {
+            Button(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isAllReady) Color(0xFF2563EB) else Color(0xFF94A3B8)
+                ),
+                shape = RoundedCornerShape(10.dp),
+                onClick = {
+                    if (!isAllReady) {
+                        showPermissionPromptDialog = true
+                    } else {
+                        app.coordinator.ready()
+                        context.startService(Intent(context, FloatingOverlayService::class.java))
+                        showSuccessLaunchDialog = true
+                    }
+                }
+            ) {
+                Text(
+                    "MUNCULKAN TOMBOL BULAT DI LAYAR",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+            }
+        }
+
+        // Section 4: History & Export Sessions Header
+        item {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "DATA REKAMAN TERSIMPAN",
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF475569)
+                )
+            )
+        }
+
+        if (sessions.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "1. Izin Tampil di Atas Aplikasi",
-                        fontWeight = FontWeight.SemiBold,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = if (isOverlayActive) "AKTIF" else "BELUM AKTIF",
-                        fontWeight = FontWeight.Bold,
-                        color = if (isOverlayActive) Color(0xFF2E7D32) else Color(0xFFD32F2F)
+                        "Belum ada data rekaman. Munculkan tombol bulat untuk mulai merekam transaksi.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF94A3B8)
                     )
                 }
-                Text(
-                    "Dibutuhkan untuk memunculkan tombol kontrol mengambang (floating button) saat Anda membuka Shopee.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.DarkGray
+            }
+        } else {
+            items(sessions) { session ->
+                SessionCard(
+                    session = session,
+                    onQuickExport = {
+                        scope.launch {
+                            val records = app.repository.getRecords(session.id)
+                            val exporter = CsvExporter(context)
+                            val result = exporter.export(records)
+                            app.repository.markSaved(session.id, result.internalFile.name)
+                            Toast.makeText(context, "Tersimpan di: ${result.publicPathDesc}", Toast.LENGTH_LONG).show()
+                            exporter.shareCsv(result.internalFile)
+                        }
+                    },
+                    onCustomDirectoryExport = {
+                        selectedSessionForCustomDir = session
+                        val dateStr = SimpleDateFormat("dd-MM-yyyy", Locale.US).format(Date(session.createdAt))
+                        createDocumentLauncher.launch("Shopee_Transaksi_${dateStr}.csv")
+                    }
                 )
-                if (!isOverlayActive) {
-                    Button(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
+            }
+        }
+    }
+
+    // -------------------------------------------------------------
+    // DIALOG: Auto / Interactive Permission Prompt (Izinkan / Tolak)
+    // -------------------------------------------------------------
+    if (showPermissionPromptDialog) {
+        val nextStepIsOverlay = !isOverlayActive
+        val nextStepIsAccessibility = isOverlayActive && !isAccessibilityActive
+
+        AlertDialog(
+            onDismissRequest = { showPermissionPromptDialog = false },
+            title = {
+                Text(
+                    if (nextStepIsOverlay) "Izinkan Tombol Bulat Melayang?"
+                    else "Izinkan Layanan Aksesibilitas Shopee?"
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (nextStepIsOverlay) {
+                        Text("Aplikasi memerlukan izin untuk menampilkan tombol bulat melayang di atas aplikasi Shopee.")
+                        Text(
+                            "Tekan 'Izinkan' untuk mengaktifkannya secara langsung.",
+                            fontSize = 12.sp,
+                            color = Color.DarkGray
+                        )
+                    } else if (nextStepIsAccessibility) {
+                        Text("Aplikasi memerlukan layanan aksesibilitas untuk membaca riwayat transaksi Shopee Anda ke dalam CSV.")
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            Text(
+                                "💡 Khusus Android 13/14/15: Jika tombol abu-abu/dibatasi, buka Info Aplikasi lalu pilih 'Izinkan setelan terbatas'.",
+                                fontSize = 11.sp,
+                                color = Color(0xFF4A148C),
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    } else {
+                        Text("Semua perizinan telah aktif! Aplikasi siap digunakan.")
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (nextStepIsOverlay) {
                             val intent = Intent(
                                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                                 Uri.parse("package:${context.packageName}")
                             )
                             context.startActivity(intent)
-                        }
-                    ) {
-                        Text("Buka Pengaturan Overlay")
-                    }
-                }
-            }
-        }
-
-        // Step 2: Accessibility Permission Card (with Android 13+ support)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(10.dp)
-        ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "2. Layanan Aksesibilitas",
-                        fontWeight = FontWeight.SemiBold,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        text = if (isAccessibilityActive) "AKTIF" else "BELUM AKTIF",
-                        fontWeight = FontWeight.Bold,
-                        color = if (isAccessibilityActive) Color(0xFF2E7D32) else Color(0xFFD32F2F)
-                    )
-                }
-                Text(
-                    "Dibutuhkan untuk membaca teks riwayat transaksi yang tampil di layar aplikasi Shopee.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.DarkGray
-                )
-
-                if (!isAccessibilityActive) {
-                    // For Android 13+ (API 33+), provide direct shortcut to App Info for Restricted Settings
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFEDE7F6)),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(
-                                    "Petunjuk Khusus Android 13/14/15:",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    color = Color(0xFF4A148C)
-                                )
-                                Text(
-                                    "Jika tombol aksesibilitas tidak bisa diklik (abu-abu/dibatasi), ketuk tombol di bawah, klik titik 3 di kanan atas, lalu pilih 'Izinkan setelan terbatas'.",
-                                    fontSize = 11.sp,
-                                    color = Color(0xFF311B92)
-                                )
-                                OutlinedButton(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    onClick = {
-                                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                            data = Uri.parse("package:${context.packageName}")
-                                        }
-                                        context.startActivity(intent)
-                                    }
-                                ) {
-                                    Text("Buka Info Aplikasi (Buka Setelan Terbatas)", fontSize = 12.sp)
-                                }
-                            }
-                        }
-                    }
-
-                    Button(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
+                        } else if (nextStepIsAccessibility) {
                             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                             context.startActivity(intent)
+                        } else {
+                            showPermissionPromptDialog = false
                         }
-                    ) {
-                        Text("Buka Pengaturan Aksesibilitas")
                     }
-                }
-            }
-        }
-
-        // Primary Action: Start Extraction
-        Button(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (isAllReady) MaterialTheme.colorScheme.primary else Color(0xFF757575)
-            ),
-            onClick = {
-                if (!isAllReady) {
-                    showPermissionMissingDialog = true
-                } else {
-                    app.coordinator.ready()
-                    context.startService(Intent(context, FloatingOverlayService::class.java))
-                    showSuccessLaunchDialog = true
-                }
-            }
-        ) {
-            Text(
-                "MULAI CAPTURE TRANSAKSI",
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
-            )
-        }
-
-        Spacer(Modifier.height(4.dp))
-        Text(
-            "RIWAYAT DATA TERSIMPAN",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
-        )
-
-        if (sessions.isEmpty()) {
-            Text(
-                "Belum ada data sesi yang tersimpan. Mulai perekaman untuk mengekstrak transaksi.",
-                style = MaterialTheme.typography.bodySmall,
-                color = Color.Gray
-            )
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                items(sessions) { session ->
-                    SessionCard(
-                        session = session,
-                        onExport = {
-                            scope.launch {
-                                val records = app.repository.getRecords(session.id)
-                                val exporter = CsvExporter(context)
-                                val result = exporter.export(records)
-                                app.repository.markSaved(session.id, result.internalFile.name)
-                                Toast.makeText(context, "Tersimpan di: ${result.publicPathDesc}", Toast.LENGTH_LONG).show()
-                                exporter.shareCsv(result.internalFile)
-                            }
-                        }
-                    )
-                }
-            }
-        }
-    }
-
-    // Modal: Permission Missing Warning
-    if (showPermissionMissingDialog) {
-        AlertDialog(
-            onDismissRequest = { showPermissionMissingDialog = false },
-            title = { Text("Izin Belum Lengkap ⚠️") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Aplikasi membutuhkan izin berikut sebelum dapat dijalankan:")
-                    if (!isOverlayActive) {
-                        Text("• Izin Overlay (Tampil di atas aplikasi lain)")
-                    }
-                    if (!isAccessibilityActive) {
-                        Text("• Layanan Aksesibilitas (Shopee Transaction Extractor)")
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Silakan selesaikan izin di atas terlebih dahulu.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                ) {
+                    Text(if (isAllReady) "Selesai" else "Izinkan")
                 }
             },
-            confirmButton = {
-                Button(onClick = { showPermissionMissingDialog = false }) {
-                    Text("Mengerti")
+            dismissButton = {
+                TextButton(onClick = { showPermissionPromptDialog = false }) {
+                    Text("Tolak / Nanti")
                 }
             }
         )
     }
 
-    // Modal: Instructions after Floating Service launched
+    // -------------------------------------------------------------
+    // DIALOG: Floating Bubble Ready Guide
+    // -------------------------------------------------------------
     if (showSuccessLaunchDialog) {
         AlertDialog(
             onDismissRequest = { showSuccessLaunchDialog = false },
-            title = { Text("Widget Melayang Aktif! 🚀") },
+            title = { Text("Tombol Bulat Melayang Aktif! 🔘") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Widget tombol kontrol telah muncul di layar Anda.")
-                    Text("Langkah berikutnya:")
-                    Text("1. Buka aplikasi Shopee > Riwayat Transaksi ShopeePay.")
-                    Text("2. Ketuk tombol 'START' pada widget melayang (status berubah jadi RECORDING).")
-                    Text("3. Scroll riwayat transaksi perlahan ke bawah.")
-                    Text("4. Ketuk 'BERHENTI' setelah selesai.")
+                    Text("Tombol bulat telah muncul di layar Anda:")
+                    Text("1. Klik tombol bulat untuk memunculkan pilihan: START, STOP, SIMPAN CSV, dan RESET.")
+                    Text("2. Buka Shopee > Riwayat Transaksi.")
+                    Text("3. Klik START lalu scroll riwayat transaksi.")
+                    Text("4. Setelah STOP, pilih SIMPAN CSV untuk memilih folder penyimpanan di HP Anda.")
                 }
             },
             confirmButton = {
@@ -420,25 +450,75 @@ private fun HomeScreen() {
 }
 
 @Composable
-private fun SessionCard(session: CaptureSessionEntity, onExport: () -> Unit) {
+private fun PermissionStatusRow(title: String, isActive: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(title, fontSize = 12.sp, color = Color(0xFF334155))
+        Text(
+            text = if (isActive) "✓ Diizinkan" else "✗ Belum Diizinkan",
+            color = if (isActive) Color(0xFF16A34A) else Color(0xFFDC2626),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun SessionCard(
+    session: CaptureSessionEntity,
+    onQuickExport: () -> Unit,
+    onCustomDirectoryExport: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp)
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                session.fileName.ifBlank { "Sesi Rekaman #${session.id}" },
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
-            )
-            Text("${session.totalRecords} transaksi ditemukan")
-            Text(formatDate(session.createdAt), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-            Text("Masuk: Rp ${session.totalIncoming} | Keluar: Rp ${session.totalOutgoing}")
-            Text("Gagal: ${session.failedCount} | Duplikat dilewati: ${session.duplicateSkippedCount}")
-            Button(
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                onClick = onExport
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(if (session.fileName.isNotBlank()) "Simpan Lagi / Bagikan CSV" else "Simpan ke Download & Bagikan CSV")
+                Text(
+                    session.fileName.ifBlank { "Sesi Rekaman #${session.id}" },
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                )
+                Text(
+                    "${session.totalRecords} Transaksi",
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF2563EB)
+                )
+            }
+            Text(formatDate(session.createdAt), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            Text(
+                "Masuk: Rp ${session.totalIncoming} | Keluar: Rp ${session.totalOutgoing}",
+                fontSize = 12.sp,
+                color = Color(0xFF334155)
+            )
+
+            // Two Export Choices: SAF Directory Picker or Quick Download
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    onClick = onCustomDirectoryExport
+                ) {
+                    Text("📁 Pilih Folder HP", fontSize = 11.sp)
+                }
+                Button(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    onClick = onQuickExport
+                ) {
+                    Text("Simpan & Share", fontSize = 11.sp)
+                }
             }
         }
     }

@@ -1,7 +1,7 @@
 package id.local.shopeeextractor.parser
 
 object AmountParser {
-    private val amountRegex = Regex("""^[+\-]?\s*Rp\s*[\d.\s\u00A0]+(,\d{2})?$""", RegexOption.IGNORE_CASE)
+    private val amountRegex = Regex("""^[+\-]?\s*Rp\s*[+\-]?\s*[\d.\s\u00A0]+(,\d{2})?$""", RegexOption.IGNORE_CASE)
 
     fun isAmount(text: String): Boolean = amountRegex.matches(text.trim())
 
@@ -11,7 +11,7 @@ object AmountParser {
             .replace("\u00A0", "")
             .replace("\\s".toRegex(), "")
         val sign = when {
-            cleaned.startsWith("-") -> -1L
+            cleaned.contains("-") -> -1L
             else -> 1L
         }
         val withoutCents = cleaned.substringBefore(",")

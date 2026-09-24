@@ -3,12 +3,28 @@ package id.local.shopeeextractor.parser
 import java.security.MessageDigest
 
 object TransactionParser {
-    private val knownStatus = setOf("gagal")
+    private val knownStatus = setOf(
+        "gagal",
+        "berhasil",
+        "selesai",
+        "dibatalkan",
+        "menunggu",
+        "menunggu pembayaran",
+        "diproses",
+        "sukses",
+        "dalam proses",
+        "dikembalikan",
+        "refund",
+    )
     private val headerTexts = setOf(
         "riwayat transaksi",
         "semua tanggal",
         "metode pembayaran",
         "semua",
+        "filter",
+        "pembayaran masuk",
+        "pembayaran keluar",
+        "rincian transaksi",
     )
 
     fun parse(block: RawTransactionBlock): ParsedTransaction? {
