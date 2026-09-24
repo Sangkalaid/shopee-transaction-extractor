@@ -11,10 +11,10 @@ import org.junit.Test
 class ParserTest {
     @Test
     fun parsesAmounts() {
-        assertEquals(-87378, AmountParser.parse("-Rp87.378"))
-        assertEquals(-1250000, AmountParser.parse("-Rp1.250.000"))
-        assertEquals(87378, AmountParser.parse("+Rp87.378"))
-        assertEquals(257883, AmountParser.parse("Rp257.883"))
+        assertEquals(-87378L, AmountParser.parse("-Rp87.378"))
+        assertEquals(-1250000L, AmountParser.parse("-Rp1.250.000"))
+        assertEquals(87378L, AmountParser.parse("+Rp87.378"))
+        assertEquals(257883L, AmountParser.parse("Rp257.883"))
     }
 
     @Test
@@ -36,7 +36,7 @@ class ParserTest {
         assertNotNull(parsed)
         assertEquals("Pembayaran", parsed!!.transactionType)
         assertEquals("Shopee Marketplace", parsed.description)
-        assertEquals(-257883, parsed.numericAmount)
+        assertEquals(-257883L, parsed.numericAmount)
         assertEquals("Gagal", parsed.transactionStatus)
     }
 
@@ -51,7 +51,7 @@ class ParserTest {
         assertNotNull(parsed)
         assertEquals("Kirim ke Bank", parsed!!.transactionType)
         assertEquals("Ke BCA 7315249317", parsed.description)
-        assertEquals(-73000, parsed.numericAmount)
+        assertEquals(-73000L, parsed.numericAmount)
         assertEquals("", parsed.transactionStatus)
     }
 
@@ -65,7 +65,7 @@ class ParserTest {
         )
         assertNotNull(parsed)
         assertEquals("Bonus Promosi", parsed!!.transactionType)
-        assertEquals(73000, parsed.numericAmount)
+        assertEquals(73000L, parsed.numericAmount)
     }
 
     private fun parse(vararg lines: String) =
