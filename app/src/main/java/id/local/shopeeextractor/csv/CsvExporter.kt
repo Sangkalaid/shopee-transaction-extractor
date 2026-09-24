@@ -1,22 +1,36 @@
 package id.local.shopeeextractor.csv
 
+import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import androidx.core.content.FileProvider
 import id.local.shopeeextractor.data.TransactionRecordEntity
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+data class ExportResult(
+    val internalFile: File,
+    val publicPathDesc: String,
+)
+
 class CsvExporter(private val context: Context) {
-    fun export(records: List<TransactionRecordEntity>): File {
+    fun export(records: List<TransactionRecordEntity>): ExportResult {
         val dir = File(context.filesDir, "exports").apply { mkdirs() }
-        val baseName = "Shopee_Transaksi_${SimpleDateFormat("dd-MM-yyyy_HHmm", Locale.US).format(Date())}"
+        val timeStamp = SimpleDateFormat("dd-MM-yyyy_HHmm", Locale.US).format(Date())
+        val baseName = "Shopee_Transaksi_$timeStamp"
         val file = uniqueFile(dir, baseName)
-        file.outputStream().bufferedWriter(Charsets.UTF_8).use { writer ->
-            writer.write("\uFEFF")
-            writer.appendLine("Jenis Transaksi;Keterangan;Tanggal;Nominal;Status")
+
+        val csvContent = buildString {
+            append("\uFEFF") // UTF-8 BOM for Microsoft Excel compatibility
+            appendLine("Jenis Transaksi;Keterangan;Tanggal;Nominal;Status")
             records.forEach { record ->
-                writer.appendLine(
+                appendLine(
                     listOf(
                         record.transactionType,
                         record.description,
@@ -27,7 +41,63 @@ class CsvExporter(private val context: Context) {
                 )
             }
         }
-        return file
+
+        file.writeText(csvContent, Charsets.UTF_8)
+
+        // Save a copy to Public Downloads directory
+        var publicDesc = "Folder Download HP (${file.name})"
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, file.name)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                }
+                val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                if (uri != null) {
+                    context.contentResolver.openOutputStream(uri)?.use { os ->
+                        os.write(csvContent.toByteArray(Charsets.UTF_8))
+                    }
+                    publicDesc = "Folder Unduhan / Download: ${file.name}"
+                }
+            } else {
+                val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (downloadDir != null && (downloadDir.exists() || downloadDir.mkdirs())) {
+                    val publicFile = File(downloadDir, file.name)
+                    publicFile.writeText(csvContent, Charsets.UTF_8)
+                    publicDesc = "Folder Download: ${publicFile.absolutePath}"
+                }
+            }
+        } catch (e: Exception) {
+            // Fallback gracefully to internal file
+        }
+
+        return ExportResult(
+            internalFile = file,
+            publicPathDesc = publicDesc,
+        )
+    }
+
+    fun shareCsv(file: File) {
+        try {
+            val contentUri: Uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.provider",
+                file
+            )
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/csv"
+                putExtra(Intent.EXTRA_STREAM, contentUri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            val chooser = Intent.createChooser(intent, "Bagikan / Buka File CSV").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(chooser)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     private fun uniqueFile(dir: File, baseName: String): File {

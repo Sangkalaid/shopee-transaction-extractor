@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
@@ -339,8 +340,11 @@ private fun HomeScreen() {
                         onExport = {
                             scope.launch {
                                 val records = app.repository.getRecords(session.id)
-                                val file = CsvExporter(context).export(records)
-                                app.repository.markSaved(session.id, file.name)
+                                val exporter = CsvExporter(context)
+                                val result = exporter.export(records)
+                                app.repository.markSaved(session.id, result.internalFile.name)
+                                Toast.makeText(context, "Tersimpan di: ${result.publicPathDesc}", Toast.LENGTH_LONG).show()
+                                exporter.shareCsv(result.internalFile)
                             }
                         }
                     )
@@ -434,7 +438,7 @@ private fun SessionCard(session: CaptureSessionEntity, onExport: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 onClick = onExport
             ) {
-                Text("Simpan / Ekspor ke File CSV")
+                Text(if (session.fileName.isNotBlank()) "Simpan Lagi / Bagikan CSV" else "Simpan ke Download & Bagikan CSV")
             }
         }
     }
