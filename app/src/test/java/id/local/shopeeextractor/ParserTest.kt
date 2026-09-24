@@ -15,6 +15,7 @@ class ParserTest {
         assertEquals(-1250000L, AmountParser.parse("-Rp1.250.000"))
         assertEquals(87378L, AmountParser.parse("+Rp87.378"))
         assertEquals(257883L, AmountParser.parse("Rp257.883"))
+        assertEquals(50000L, AmountParser.parse("Rp50.000,00"))
     }
 
     @Test
@@ -22,6 +23,8 @@ class ParserTest {
         assertEquals("2026-09-24", IndonesianDateParser.normalize("24 September 2026"))
         assertEquals("2026-09-09", IndonesianDateParser.normalize("09 September 2026"))
         assertEquals("2026-09-08", IndonesianDateParser.normalize("8 September 2026"))
+        assertEquals("2026-09-24", IndonesianDateParser.normalize("24 Sep 2026"))
+        assertEquals("2026-09-24", IndonesianDateParser.normalize("24 Sep 2026, 14:30"))
     }
 
     @Test

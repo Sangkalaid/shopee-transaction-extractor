@@ -14,8 +14,21 @@ object IndonesianDateParser {
         "oktober" to "10",
         "november" to "11",
         "desember" to "12",
+        "jan" to "01",
+        "feb" to "02",
+        "mar" to "03",
+        "apr" to "04",
+        "jun" to "06",
+        "jul" to "07",
+        "agu" to "08",
+        "agt" to "08",
+        "agst" to "08",
+        "sep" to "09",
+        "okt" to "10",
+        "nov" to "11",
+        "des" to "12",
     )
-    private val dateRegex = Regex("""^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$""")
+    private val dateRegex = Regex("""^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})(?:[,\s]+.*)?$""")
 
     fun isDate(text: String): Boolean = normalize(text) != null
 

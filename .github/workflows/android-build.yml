@@ -24,14 +24,35 @@ jobs:
         with:
           gradle-version: "8.10.2"
 
+      - name: Generate Signing Keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore app/release.keystore \
+            -alias shopee \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass shopeepassword \
+            -keypass shopeepassword \
+            -dname "CN=Shopee Transaction Extractor, OU=Mobile, O=Sangkalaid, L=Jakarta, ST=DKI, C=ID"
+
       - name: Unit test
         run: gradle test
 
       - name: Build debug APK
         run: gradle assembleDebug
 
-      - name: Upload APK
+      - name: Build release APK
+        run: gradle assembleRelease
+
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: app/build/outputs/apk/release/*.apk

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Shopee Transaction Extractor</string>
-    <string name="accessibility_description">Membaca transaksi yang tampil saat capture aktif.</string>
+    <string name="accessibility_description">Layanan ini hanya membaca riwayat transaksi di aplikasi Shopee untuk dicatat ke CSV saat Anda menekan Mulai.</string>
 </resources>
+

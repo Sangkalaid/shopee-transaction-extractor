@@ -5,8 +5,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import id.local.shopeeextractor.parser.RawTransactionBlock
 
 object AccessibilityNodeReader {
-    private val dateRegex = Regex("""\d{1,2}\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+\d{4}""")
-    private val amountRegex = Regex("""[+\-]?\s*Rp\s*[\d.]+""", RegexOption.IGNORE_CASE)
+    private val dateRegex = Regex("""\d{1,2}\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember|Jan|Feb|Mar|Apr|Mei|Jun|Jul|Agu|Agt|Agst|Sep|Okt|Nov|Des)\s+\d{4}""", RegexOption.IGNORE_CASE)
+    private val amountRegex = Regex("""[+\-]?\s*Rp\s*[\d.]+(,\d{2})?""", RegexOption.IGNORE_CASE)
 
     fun extractCandidateBlocks(root: AccessibilityNodeInfo?): List<RawTransactionBlock> {
         if (root == null) return emptyList()
@@ -39,7 +39,18 @@ object AccessibilityNodeReader {
     private fun collectContainers(node: AccessibilityNodeInfo, out: MutableList<AccessibilityNodeInfo>) {
         val text = collectText(node).joinToString("\n")
         if (dateRegex.containsMatchIn(text) && amountRegex.containsMatchIn(text)) {
-            out += node
+            var hasChildWithBoth = false
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i) ?: continue
+                val childText = collectText(child).joinToString("\n")
+                if (dateRegex.containsMatchIn(childText) && amountRegex.containsMatchIn(childText)) {
+                    hasChildWithBoth = true
+                    collectContainers(child, out)
+                }
+            }
+            if (!hasChildWithBoth) {
+                out += node
+            }
             return
         }
         for (i in 0 until node.childCount) {
