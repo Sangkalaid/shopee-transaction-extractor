@@ -5,8 +5,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import id.local.shopeeextractor.parser.RawTransactionBlock
 
 object AccessibilityNodeReader {
-    private val dateRegex = Regex("""\d{1,2}\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember|Jan|Feb|Mar|Apr|Mei|Jun|Jul|Agu|Agt|Agst|Sep|Okt|Nov|Des)\s+\d{4}""", RegexOption.IGNORE_CASE)
-    private val amountRegex = Regex("""[+\-]?\s*Rp\s*[\d.]+(,\d{2})?""", RegexOption.IGNORE_CASE)
+    private val dateRegex = Regex("""\d{1,2}\s+[A-Za-z]+\s+\d{4}""", RegexOption.IGNORE_CASE)
+    private val amountRegex = Regex("""[+\-]?\s*Rp\s*[+\-]?\s*[\d.\s\u00A0]+(,\d{2})?""", RegexOption.IGNORE_CASE)
 
     fun extractCandidateBlocks(root: AccessibilityNodeInfo?): List<RawTransactionBlock> {
         if (root == null) return emptyList()
@@ -16,7 +16,8 @@ object AccessibilityNodeReader {
         return containers
             .mapIndexedNotNull { index, node ->
                 val texts = collectText(node)
-                    .map { it.trim() }
+                    .flatMap { it.split("\r\n", "\n", "\r") }
+                    .map { it.replace('\u00A0', ' ').trim() }
                     .filter { it.isNotBlank() }
                     .distinct()
                 val full = texts.joinToString("\n")

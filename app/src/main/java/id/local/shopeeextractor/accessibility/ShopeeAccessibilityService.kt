@@ -58,16 +58,26 @@ class ShopeeAccessibilityService : AccessibilityService() {
         if (app.coordinator.state.value.state != CaptureState.RECORDING) return
 
         val packageName = event?.packageName?.toString().orEmpty()
-        if (packageName.isNotBlank() && !packageName.contains("shopee", ignoreCase = true)) return
+        if (packageName.isNotBlank() && !isShopeePackage(packageName)) return
 
         parseJob?.cancel()
         parseJob = scope.launch {
             delay(180)
             val root = rootInActiveWindow ?: return@launch
+            val rootPkg = root.packageName?.toString().orEmpty()
+            if (rootPkg.isNotBlank() && !isShopeePackage(rootPkg)) return@launch
+
             val parsed = AccessibilityNodeReader.extractCandidateBlocks(root)
                 .mapNotNull { TransactionParser.parse(it) }
             app.coordinator.onVisibleTransactions(parsed)
         }
+    }
+
+    private fun isShopeePackage(pkg: String): Boolean {
+        val lower = pkg.lowercase()
+        return lower.contains("shopee") ||
+                lower.contains("airpay") ||
+                lower.contains("seabank")
     }
 
     override fun onInterrupt() = Unit
